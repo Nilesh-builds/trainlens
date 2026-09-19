@@ -1,10 +1,15 @@
 # TrainLens
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open%20Dashboard-FF4B4B?logo=streamlit&logoColor=white)](https://trainlens-gv48ihtbq6nbapgfrlworc.streamlit.app/)
 [![CI](https://github.com/Nilesh-builds/trainlens/actions/workflows/ci.yml/badge.svg)](https://github.com/Nilesh-builds/trainlens/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)
 
 TrainLens is a customer-support data quality and evaluation platform. It checks raw tickets, assigns category and sentiment labels, routes uncertain predictions for review, and reports model performance through a Streamlit dashboard.
+
+**Live dashboard:** https://trainlens-gv48ihtbq6nbapgfrlworc.streamlit.app/
+
+The hosted dashboard runs in demo mode with synthetic data. It is safe to explore and does not contain private customer records.
 
 The project is designed to answer a practical question: **Can this dataset be trusted for AI training and evaluation?**
 
@@ -50,6 +55,8 @@ The generated dataset contains 852 customer-support conversations after quality 
 | Automated tests | 19 passing |
 
 The generator adds explicit but natural sentiment cues so the baseline can be evaluated against the message text. The benchmark still includes malformed records and unknown values to exercise the quality checks.
+
+The dashboard also reports label coverage by method, so reviewers can distinguish Groq predictions from rule-based fallback predictions when a free-tier rate limit is reached.
 
 ## Quick Start
 
@@ -105,7 +112,7 @@ For Streamlit Community Cloud:
 3. Add `GROQ_API_KEY`, `GROQ_MODEL`, and `USE_LLM` under App settings and Secrets.
 4. Keep `USE_LLM=false` if the dashboard should run without external API calls.
 
-The repository does not require generated data to be committed. Run the pipeline after deployment or provide the generated data through the selected deployment workflow.
+The repository does not require generated data to be committed. On first launch, the dashboard creates a demo dataset and runs the local fallback pipeline automatically. This keeps the public deployment independent of private data and API keys.
 
 ## Dashboard Tabs
 
@@ -148,6 +155,13 @@ trainlens/
 - Streamlit and Plotly for the dashboard
 - Pydantic for validation models
 - pytest and GitHub Actions for testing
+
+## Suggested GitHub Topics
+
+```text
+python, streamlit, data-quality, customer-support-analytics,
+llm-evaluation, human-in-the-loop, machine-learning, plotly
+```
 
 ## Current Limitations
 

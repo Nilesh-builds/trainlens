@@ -2,6 +2,9 @@
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import os
+import subprocess
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -97,6 +100,32 @@ def run_pipeline():
     )
 
 
+def ensure_demo_data():
+    """Create demo artifacts on first launch in a clean deployment environment."""
+    raw_path = ROOT / "data" / "raw" / "customer_support_tickets.csv"
+    if raw_path.exists():
+        return True
+
+    env = os.environ.copy()
+    env["USE_LLM"] = "false"
+    with st.spinner("Preparing the demo dataset for this deployment..."):
+        generated = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "generate_data.py")],
+            capture_output=True, text=True, cwd=str(ROOT), env=env,
+        )
+        if generated.returncode != 0:
+            st.error("Could not generate the demo dataset.")
+            return False
+        pipeline = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "run_pipeline.py")],
+            capture_output=True, text=True, cwd=str(ROOT), env=env,
+        )
+    if pipeline.returncode != 0:
+        st.error("Could not prepare demo analytics. Check the deployment logs.")
+        return False
+    return True
+
+
 def load_validation_report():
     import sys
     sys.path.insert(0, str(ROOT / "src"))
@@ -176,6 +205,10 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════
 st.markdown('<div class="gradient-text">🔷 TrainLens</div>', unsafe_allow_html=True)
 st.caption("AI Training Data Quality & Evaluation Platform | Customer Support Analytics")
+st.info("Demo mode: this deployment uses synthetic customer-support data. No private customer data is included.")
+
+if not ensure_demo_data():
+    st.stop()
 
 raw, cat, sent, review, analytics = load_data()
 quality_report = load_validation_report() if (ROOT / "data" / "raw" / "customer_support_tickets.csv").exists() else None
@@ -184,6 +217,17 @@ if raw is None:
     st.error("Data not found. Run the pipeline first.")
     st.info("Use the **Run Full Pipeline** button in the sidebar, or run: `python scripts/run_pipeline.py`")
     st.stop()
+
+with st.sidebar:
+    st.divider()
+    st.subheader("🧾 Run Metadata")
+    if cat is not None and len(cat) > 0:
+        run_ids = cat["label_run_id"].dropna().unique().tolist() if "label_run_id" in cat else []
+        models = cat["label_model"].dropna().unique().tolist() if "label_model" in cat else []
+        st.caption(f"Run: {run_ids[0] if run_ids else 'legacy dataset'}")
+        st.caption(f"Model: {', '.join(models) if models else 'unknown'}")
+        if "labeled_at" in cat:
+            st.caption(f"Labeled: {cat['labeled_at'].iloc[0]}")
 
 # Filters apply to analytical views while the quality report stays run-level.
 with st.sidebar:
@@ -239,6 +283,14 @@ with tab1:
     with k4: metric_card(f"{cat['prediction_confidence'].mean()*100:.1f}%", "Avg Confidence") if cat is not None else metric_card("—", "Confidence")
     with k5: metric_card(f"{review['status'].value_counts().get('approved', 0):,}", "Reviewed") if review is not None else metric_card("—", "Reviewed")
     with k6: metric_card(f"{len(raw) * 0.023:,.0f}", "Needs Review")
+
+    if cat is not None and "label_method" in cat:
+        st.subheader("Label Coverage")
+        method_counts = cat["label_method"].value_counts()
+        coverage_cols = st.columns(max(1, len(method_counts)))
+        for column, (method, count) in zip(coverage_cols, method_counts.items()):
+            with column:
+                metric_card(f"{count / len(cat):.1%}", f"{method} labels ({count:,})")
 
     st.divider()
     c1, c2 = st.columns(2)
