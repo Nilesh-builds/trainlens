@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -118,14 +119,32 @@ class MetricsReport:
         sent_eval = self.evaluator.evaluate_sentiment()
         conf_analysis = self.evaluator.confidence_analysis()
         errors = self.evaluator.error_analysis()
+        method_metrics = {}
+        for method, method_df in self.labeled_df.groupby("label_method", dropna=False):
+            cat_mask = method_df["category"].isin({"billing", "technical_support", "shipping", "product_inquiry", "cancellation", "refund"})
+            sent_mask = method_df["sentiment"].isin({"positive", "neutral", "negative"})
+            method_metrics[str(method)] = {
+                "records": int(len(method_df)),
+                "category_accuracy": round(accuracy_score(method_df.loc[cat_mask, "category"], method_df.loc[cat_mask, "predicted_category"]) * 100, 2) if cat_mask.any() else 0,
+                "category_macro_f1": round(f1_score(method_df.loc[cat_mask, "category"], method_df.loc[cat_mask, "predicted_category"], average="macro", zero_division=0) * 100, 2) if cat_mask.any() else 0,
+                "sentiment_accuracy": round(accuracy_score(method_df.loc[sent_mask, "sentiment"], method_df.loc[sent_mask, "predicted_sentiment"]) * 100, 2) if sent_mask.any() else 0,
+                "sentiment_macro_f1": round(f1_score(method_df.loc[sent_mask, "sentiment"], method_df.loc[sent_mask, "predicted_sentiment"], average="macro", zero_division=0) * 100, 2) if sent_mask.any() else 0,
+            }
 
         return {
+            "metadata": {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "label_runs": self.labeled_df.get("label_run_id", pd.Series(dtype=str)).dropna().unique().tolist(),
+                "label_models": self.labeled_df.get("label_model", pd.Series(dtype=str)).dropna().unique().tolist(),
+            },
             "summary": {
                 "total_samples": len(self.labeled_df),
                 "category_accuracy": round(cat_eval.accuracy * 100, 2),
                 "category_f1": round(cat_eval.f1 * 100, 2),
+                "category_macro_f1": round(f1_score(*self.evaluator._filter_valid("category", "predicted_category"), average="macro", zero_division=0) * 100, 2),
                 "sentiment_accuracy": round(sent_eval.accuracy * 100, 2),
                 "sentiment_f1": round(sent_eval.f1 * 100, 2),
+                "sentiment_macro_f1": round(f1_score(*self.evaluator._filter_valid("sentiment", "predicted_sentiment"), average="macro", zero_division=0) * 100, 2),
                 "needs_review_pct": round(
                     self.labeled_df["needs_review"].sum() / len(self.labeled_df) * 100, 2
                 ),
@@ -142,6 +161,7 @@ class MetricsReport:
             },
             "confidence_analysis": conf_analysis.to_dict("records"),
             "top_errors": errors.to_dict("records"),
+            "by_label_method": method_metrics,
         }
 
     def export(self, output_dir: str | Path):

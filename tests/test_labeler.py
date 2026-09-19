@@ -7,7 +7,7 @@ sys.path.insert(0, str(ROOT))
 
 import pandas as pd
 import pytest
-from src.ai_labeling.labeler import AILabeler, rule_based_label
+from src.ai_labeling.labeler import AILabeler, _validated_llm_result, rule_based_label
 
 
 def test_rule_based_label_billing():
@@ -67,3 +67,22 @@ def test_labeler_confidence_threshold():
     result_high = labeler_high.label_dataframe(df)
     result_low = labeler_low.label_dataframe(df)
     assert result_high["needs_review"].sum() >= result_low["needs_review"].sum()
+
+
+def test_llm_output_is_normalized():
+    result = _validated_llm_result({
+        "category": "not_a_category",
+        "sentiment": "not_a_sentiment",
+        "confidence": 4,
+    })
+    assert result.predicted_category == "unknown"
+    assert result.predicted_sentiment == "neutral"
+    assert result.confidence == 1.0
+
+
+def test_label_lineage_is_written():
+    df = pd.DataFrame({"customer_message": ["I need a refund"]})
+    result = AILabeler(use_llm=False).label_dataframe(df)
+    assert result["label_run_id"].str.startswith("label-").all()
+    assert result["label_model"].eq("rule-based").all()
+    assert result["labeled_at"].notna().all()

@@ -21,6 +21,24 @@ CHANNELS = ["email", "chat", "phone", "social_media"]
 SENTIMENTS = ["positive", "neutral", "negative"]
 PRIORITIES = ["low", "medium", "high", "critical"]
 
+SENTIMENT_CUES = {
+    "positive": [
+        "Thanks for the help, this has been great.",
+        "I appreciate the quick support.",
+        "This is excellent service.",
+    ],
+    "neutral": [
+        "Please let me know what information you need.",
+        "I would like an update on this request.",
+        "Can you explain the next step?",
+    ],
+    "negative": [
+        "This is frustrating and still unresolved.",
+        "I am disappointed with how this was handled.",
+        "This problem is unacceptable and needs attention.",
+    ],
+}
+
 CUSTOMER_MSGS = {
     "charge_question": [
         "I was charged twice for my subscription this month",
@@ -236,6 +254,9 @@ def generate_conversation(category: str, intent: str, conv_id: int) -> dict:
         sentiment = random.choices(SENTIMENTS, weights=[0.1, 0.3, 0.6])[0]
     elif resolution in ("provided_tracking", "confirmed_compatibility", "provided_pricing_info"):
         sentiment = random.choices(SENTIMENTS, weights=[0.6, 0.3, 0.1])[0]
+
+    # Keep the synthetic ground truth learnable by adding a natural sentiment cue.
+    customer_msg = f"{customer_msg} {random.choice(SENTIMENT_CUES[sentiment])}"
 
     priority = random.choices(PRIORITIES, weights=[0.2, 0.5, 0.2, 0.1])[0]
     if category in ("refund", "cancellation"):

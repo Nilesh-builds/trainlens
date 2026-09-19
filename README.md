@@ -36,20 +36,20 @@ Raw tickets
 
 ## Latest Baseline
 
-The generated dataset contains 800 customer-support conversations. Results vary slightly because the review simulation samples records randomly.
+The generated dataset contains 852 customer-support conversations after quality issues are injected. Results vary slightly because the review simulation samples records randomly.
 
 | Metric | Observed value |
 |---|---:|
-| Dataset size | 800 conversations |
+| Dataset size | 852 conversations |
 | Quality score | 98.81% |
-| Category accuracy | 80.9% |
-| Category F1 | 80.87% |
-| Sentiment accuracy | 37.04% |
-| Sentiment F1 | 20.77% |
-| Review queue | 22.4% |
-| Automated tests | 17 passing |
+| Category accuracy | 74.02% |
+| Category F1 | 73.86% |
+| Sentiment accuracy | 77.94% |
+| Sentiment F1 | 77.89% |
+| Review queue | 12.32% |
+| Automated tests | 19 passing |
 
-The sentiment baseline is intentionally visible. The generated messages do not always contain explicit sentiment cues, so the rule fallback tends to predict `neutral`. This is a useful limitation to investigate rather than hide.
+The generator adds explicit but natural sentiment cues so the baseline can be evaluated against the message text. The benchmark still includes malformed records and unknown values to exercise the quality checks.
 
 ## Quick Start
 
@@ -95,6 +95,17 @@ LLM_BATCH_SIZE=20
 The key must come from Groq Console. Never commit `.env`, paste a key into source code, or include it in screenshots. `.env.example` contains the safe template.
 
 The LLM path sends tickets in batches to reduce free-tier API usage. If Groq returns an error or rate limit, TrainLens switches to the local fallback for the rest of that run.
+
+## Deploy the Dashboard
+
+For Streamlit Community Cloud:
+
+1. Select this repository and the `main` branch.
+2. Set the main file to `src/dashboard/app.py`.
+3. Add `GROQ_API_KEY`, `GROQ_MODEL`, and `USE_LLM` under App settings and Secrets.
+4. Keep `USE_LLM=false` if the dashboard should run without external API calls.
+
+The repository does not require generated data to be committed. Run the pipeline after deployment or provide the generated data through the selected deployment workflow.
 
 ## Dashboard Tabs
 

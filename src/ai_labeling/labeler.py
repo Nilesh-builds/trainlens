@@ -5,8 +5,11 @@ import json
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -63,6 +66,21 @@ SENTIMENT_KEYWORDS = {
         "weight": 1.0,
     },
 }
+
+VALID_CATEGORIES = set(KEYWORD_RULES) | {"unknown"}
+VALID_SENTIMENTS = {"positive", "neutral", "negative"}
+
+
+def _validated_llm_result(data: dict) -> LabelResult:
+    """Normalize model output before it enters the labeled dataset."""
+    category = data.get("category", "unknown")
+    sentiment = data.get("sentiment", "neutral")
+    if category not in VALID_CATEGORIES:
+        category = "unknown"
+    if sentiment not in VALID_SENTIMENTS:
+        sentiment = "neutral"
+    confidence = max(0.0, min(1.0, float(data.get("confidence", 0.5))))
+    return LabelResult(category, sentiment, round(confidence, 3), "llm")
 
 
 def rule_based_label(text: str) -> LabelResult:
@@ -146,12 +164,7 @@ JSON:"""
             match = re.search(r"\{.*\}", content, re.DOTALL)
             if match:
                 data = json.loads(match.group())
-                return LabelResult(
-                    predicted_category=data.get("category", "unknown"),
-                    predicted_sentiment=data.get("sentiment", "neutral"),
-                    confidence=float(data.get("confidence", 0.5)),
-                    method="llm",
-                )
+                return _validated_llm_result(data)
         else:
             _llm_unavailable = True
             logger.warning(
@@ -189,21 +202,34 @@ Messages:
 {messages}
 
 JSON array:"""
-        response = httpx.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"},
-            json={
-                "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.1,
-                # Reasoning models may spend tokens before returning the JSON array.
-                "max_tokens": max(1500, len(texts) * 150),
-            },
-            timeout=30.0,
-        )
+        payload = {
+            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            # Reasoning models may spend tokens before returning the JSON array.
+            "max_tokens": max(1500, len(texts) * 150),
+        }
+        response = None
+        max_retries = int(os.getenv("LLM_MAX_RETRIES", "1"))
+        for attempt in range(max_retries + 1):
+            response = httpx.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"},
+                json=payload,
+                timeout=30.0,
+            )
+            if response.status_code != 429 or attempt == max_retries:
+                break
+            retry_after = min(float(response.headers.get("retry-after", 5)), 30.0)
+            logger.warning("Groq rate limit reached; retrying in %.1f seconds", retry_after)
+            time.sleep(retry_after)
         if response.status_code != 200:
             _llm_unavailable = True
-            logger.warning("Groq batch request failed with HTTP %s; using fallback", response.status_code)
+            logger.warning(
+                "Groq batch request stopped after rate limit/API failure (HTTP %s); "
+                "using fallback for remaining records",
+                response.status_code,
+            )
             return [rule_based_label(text) for text in texts]
 
         content = response.json()["choices"][0]["message"]["content"]
@@ -213,12 +239,7 @@ JSON array:"""
         data = json.loads(match.group())
         if len(data) != len(texts):
             raise ValueError(f"LLM returned {len(data)} labels for {len(texts)} messages")
-        return [LabelResult(
-            predicted_category=item.get("category", "unknown"),
-            predicted_sentiment=item.get("sentiment", "neutral"),
-            confidence=float(item.get("confidence", 0.5)),
-            method="llm",
-        ) for item in data]
+        return [_validated_llm_result(item) for item in data]
     except Exception as exc:
         _llm_unavailable = True
         logger.warning("Groq batch request failed (%s: %s); using fallback", type(exc).__name__, exc)
@@ -228,9 +249,10 @@ JSON array:"""
 class AILabeler:
     """Label customer support data using hybrid rule + LLM approach."""
 
-    def __init__(self, use_llm: bool = False, confidence_threshold: float = 0.3):
+    def __init__(self, use_llm: bool = False, confidence_threshold: float = 0.3, run_id: str | None = None):
         self.use_llm = use_llm
         self.confidence_threshold = confidence_threshold
+        self.run_id = run_id or f"label-{uuid4().hex[:12]}"
 
     def label_text(self, text: str) -> LabelResult:
         if self.use_llm:
@@ -252,6 +274,9 @@ class AILabeler:
         df["prediction_confidence"] = [result.confidence for result in results]
         df["label_method"] = [result.method for result in results]
         df["needs_review"] = df["prediction_confidence"] < self.confidence_threshold
+        df["label_run_id"] = self.run_id
+        df["labeled_at"] = datetime.now(timezone.utc).isoformat()
+        df["label_model"] = os.getenv("GROQ_MODEL", "rule-based") if self.use_llm else "rule-based"
         return df
 
     def label_file(self, input_path: str | Path, output_path: str | Path) -> pd.DataFrame:

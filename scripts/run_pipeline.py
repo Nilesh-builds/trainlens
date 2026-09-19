@@ -59,6 +59,8 @@ def stage_label():
     )
     n_review = labeled_df["needs_review"].sum()
     console.print(f"  [green]OK[/] Labeled {len(labeled_df)} records")
+    for method, count in labeled_df["label_method"].value_counts().items():
+        console.print(f"  {method}: {count} records")
     console.print(f"  [yellow]WARN[/] {n_review} flagged for review ({n_review/len(labeled_df)*100:.1f}%)\n")
     return labeled_df
 
@@ -87,8 +89,10 @@ def stage_evaluate():
     summary = report["summary"]
     console.print(f"  Category Accuracy: [bold green]{summary['category_accuracy']}%[/]")
     console.print(f"  Category F1: [bold]{summary['category_f1']}%[/]")
+    console.print(f"  Category Macro F1: [bold]{summary['category_macro_f1']}%[/]")
     console.print(f"  Sentiment Accuracy: [bold green]{summary['sentiment_accuracy']}%[/]")
     console.print(f"  Sentiment F1: [bold]{summary['sentiment_f1']}%[/]")
+    console.print(f"  Sentiment Macro F1: [bold]{summary['sentiment_macro_f1']}%[/]")
     console.print(f"  Needs Review: [yellow]{summary['needs_review_pct']}%[/]\n")
     return report
 

@@ -185,6 +185,38 @@ if raw is None:
     st.info("Use the **Run Full Pipeline** button in the sidebar, or run: `python scripts/run_pipeline.py`")
     st.stop()
 
+# Filters apply to analytical views while the quality report stays run-level.
+with st.sidebar:
+    st.divider()
+    st.subheader("🔎 Explore Filters")
+    selected_channels = st.multiselect("Channels", sorted(raw["channel"].dropna().unique())) if "channel" in raw else []
+    selected_categories = st.multiselect(
+        "Predicted categories", sorted(cat["predicted_category"].dropna().unique()) if cat is not None else []
+    )
+    selected_sentiments = st.multiselect(
+        "Predicted sentiments", sorted(cat["predicted_sentiment"].dropna().unique()) if cat is not None else []
+    )
+    selected_methods = st.multiselect(
+        "Label methods", sorted(cat["label_method"].dropna().unique()) if cat is not None and "label_method" in cat else []
+    )
+
+if selected_channels:
+    raw = raw[raw["channel"].isin(selected_channels)]
+if cat is not None:
+    cat_mask = pd.Series(True, index=cat.index)
+    if selected_categories:
+        cat_mask &= cat["predicted_category"].isin(selected_categories)
+    if selected_sentiments:
+        cat_mask &= cat["predicted_sentiment"].isin(selected_sentiments)
+    if selected_methods and "label_method" in cat:
+        cat_mask &= cat["label_method"].isin(selected_methods)
+    cat = cat[cat_mask]
+    sent = cat.copy()
+    valid_ids = set(cat["conversation_id"])
+    raw = raw[raw["conversation_id"].isin(valid_ids)]
+    if review is not None:
+        review = review[review["conversation_id"].isin(valid_ids)]
+
 
 # ══════════════════════════════════════════════════════════════════
 #                       TABS LAYOUT
@@ -530,10 +562,37 @@ with tab6:
     st.subheader("👥 Human-in-the-Loop Review Queue")
 
     if review is not None:
+        pending_rows = review[review["status"].isin(["pending", "in_review"])]
+        if len(pending_rows) > 0:
+            st.subheader("✍️ Review One Prediction")
+            review_row = pending_rows.sort_values("prediction_confidence").iloc[0]
+            st.caption(f"Reviewing {review_row['conversation_id']} | confidence {review_row['prediction_confidence']:.1%}")
+            st.info(review_row["customer_message"])
+            with st.form("review_prediction_form"):
+                form_category = st.selectbox("Human category", ["billing", "technical_support", "shipping", "product_inquiry", "cancellation", "refund"], index=0)
+                form_sentiment = st.selectbox("Human sentiment", ["positive", "neutral", "negative"], index=1)
+                form_reviewer = st.text_input("Reviewer", value="analyst")
+                form_notes = st.text_area("Notes")
+                submitted = st.form_submit_button("Save Review", type="primary")
+            if submitted:
+                review_path = ROOT / "data" / "labeled" / "review_results.csv"
+                review_data = pd.read_csv(review_path)
+                row_mask = review_data["conversation_id"] == review_row["conversation_id"]
+                review_data.loc[row_mask, "human_category"] = form_category
+                review_data.loc[row_mask, "human_sentiment"] = form_sentiment
+                review_data.loc[row_mask, "reviewer"] = form_reviewer
+                review_data.loc[row_mask, "notes"] = form_notes
+                review_data.loc[row_mask, "status"] = "reviewed"
+                review_data.loc[row_mask, "reviewed_at"] = datetime.now().isoformat()
+                review_data.to_csv(review_path, index=False)
+                st.cache_data.clear()
+                st.success("Review saved.")
+                st.rerun()
+
         # Stats
-        reviewed = review[review['status'] != 'pending']
-        pending = review[review['status'] == 'pending']
-        approved = review[review['status'] == 'approved']
+        reviewed = review[~review['status'].isin(['pending', 'in_review'])]
+        pending = review[review['status'].isin(['pending', 'in_review'])]
+        approved = review[review['status'].isin(['approved', 'reviewed'])]
         rejected = review[review['status'] == 'rejected']
 
         k1, k2, k3, k4, k5 = st.columns(5)
@@ -563,9 +622,14 @@ with tab6:
         # Agreement by category
         with rev_col2:
             if len(reviewed) > 0 and 'predicted_category' in reviewed.columns:
-                agree_by_cat = reviewed.groupby('predicted_category', group_keys=False).apply(
-                    lambda x: (x['predicted_category'] == x['human_category']).mean() * 100
-                ).reset_index()
+                reviewed = reviewed.copy()
+                reviewed['category_agreement'] = (
+                    reviewed['predicted_category'] == reviewed['human_category']
+                )
+                agree_by_cat = (
+                    reviewed.groupby('predicted_category')['category_agreement']
+                    .mean().mul(100).reset_index()
+                )
                 agree_by_cat.columns = ["category", "agreement"]
                 fig = px.bar(agree_by_cat, x="category", y="agreement", color="agreement",
                              template="plotly_dark",
