@@ -1,106 +1,157 @@
 # TrainLens
 
-**AI Training Data Quality and Evaluation Platform for Customer Support**
+[![CI](https://github.com/Nilesh-builds/trainlens/actions/workflows/ci.yml/badge.svg)](https://github.com/Nilesh-builds/trainlens/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)
 
-A production-grade data analytics and AI training pipeline that validates, labels, evaluates, and monitors customer support conversation data using free AI models and human-in-the-loop review.
+TrainLens is a customer-support data quality and evaluation platform. It checks raw tickets, assigns category and sentiment labels, routes uncertain predictions for review, and reports model performance through a Streamlit dashboard.
 
-## What It Does
+The project is designed to answer a practical question: **Can this dataset be trusted for AI training and evaluation?**
 
-TrainLens solves a real business problem: **how to measure and improve the quality of AI training data** in customer support operations.
+![TrainLens dashboard preview](assets/dashboard_composite.png)
 
+## Pipeline
+
+```text
+Raw tickets
+    -> Quality validation
+    -> Analytics reports
+    -> AI labeling
+    -> Human review queue
+    -> Evaluation metrics
+    -> Streamlit dashboard
 ```
-Raw Data --> Quality Validation --> AI Labeling --> Human Review --> Evaluation --> Dashboard
-```
 
-### Pipeline Stages
+## What It Includes
 
-| Stage | What It Does | Output |
-|-------|-------------|--------|
-| **1. Data Quality** | Validates completeness, validity, uniqueness, consistency, timeliness | Quality score, issue report |
-| **2. Analytics** | SQL-powered analytics on categories, sentiments, channels, agents | 8 analytical reports |
-| **3. AI Labeling** | Rule-based + optional LLM labeling with confidence scores | Labeled dataset with review flags |
-| **4. Human Review** | Queue uncertain predictions for human correction | Agreement metrics, disagreement log |
-| **5. Evaluation** | Precision, recall, F1, confusion matrices, confidence calibration | Evaluation report, error analysis |
-| **6. Dashboard** | Interactive Streamlit UI with all metrics and visualizations | Real-time monitoring |
+- A five-dimension validation framework: completeness, validity, uniqueness, consistency, and timeliness
+- Eleven data quality checks with pass rates and affected-row counts
+- DuckDB and pandas reports for category, sentiment, channel, agent, priority, and time trends
+- Hybrid labeling with Groq LLM batches and a local keyword fallback
+- Confidence-based review routing
+- Simulated human review with agreement and disagreement analysis
+- Accuracy, precision, recall, F1, confusion matrices, and calibration reports
+- A dark Streamlit dashboard with Plotly charts and CSV export
+- Automated tests and GitHub Actions CI
 
-## Key Features
+## Latest Baseline
 
-- **5-dimension data quality framework** (completeness, validity, uniqueness, consistency, timeliness)
-- **Hybrid AI labeling** (keyword rules + free LLM APIs with fallback)
-- **Confidence-based review routing** (only uncertain predictions go to humans)
-- **Model evaluation** (per-category and per-sentiment precision/recall/F1)
-- **Confidence calibration analysis** (does high confidence = high accuracy?)
-- **Interactive dashboard** (Plotly visualizations, real-time pipeline execution)
-- **17 automated tests** across all modules
-- **GitHub Actions CI** (Python 3.10-3.12, linting, testing)
+The generated dataset contains 800 customer-support conversations. Results vary slightly because the review simulation samples records randomly.
 
-## Results
+| Metric | Observed value |
+|---|---:|
+| Dataset size | 800 conversations |
+| Quality score | 98.81% |
+| Category accuracy | 80.9% |
+| Category F1 | 80.87% |
+| Sentiment accuracy | 37.04% |
+| Sentiment F1 | 20.77% |
+| Review queue | 22.4% |
+| Automated tests | 17 passing |
 
-| Metric | Value |
-|--------|-------|
-| Dataset Size | 800 conversations |
-| Categories | 6 (billing, tech support, shipping, product inquiry, cancellation, refund) |
-| Data Quality Score | 98.8% |
-| Category Accuracy | 80.9% |
-| Category F1 | 80.8% |
-| Needs Review Rate | 23.0% |
-| Human-AI Category Agreement | 87.4% |
+The sentiment baseline is intentionally visible. The generated messages do not always contain explicit sentiment cues, so the rule fallback tends to predict `neutral`. This is a useful limitation to investigate rather than hide.
 
 ## Quick Start
 
-```bash
-# Install dependencies
+Use Python 3.10 or newer.
+
+```powershell
+git clone https://github.com/Nilesh-builds/trainlens.git
+cd trainlens
 pip install -r requirements.txt
+```
 
-# Run the full pipeline
+Run the pipeline:
+
+```powershell
 python scripts/run_pipeline.py
+```
 
-# Launch the dashboard
+Start the dashboard:
+
+```powershell
 streamlit run src/dashboard/app.py
-
-# Run tests
-pytest tests/ -v
 ```
 
-## Project Structure
+Run tests:
 
+```powershell
+pytest -q
 ```
+
+## Optional Groq LLM
+
+The default pipeline works without an API key. It uses the rule-based fallback when LLM access is disabled, unavailable, or rate-limited.
+
+Create a local `.env` file in the project root. It is ignored by Git.
+
+```env
+GROQ_API_KEY=gsk_your_key_here
+GROQ_MODEL=openai/gpt-oss-20b
+USE_LLM=true
+LLM_BATCH_SIZE=20
+```
+
+The key must come from Groq Console. Never commit `.env`, paste a key into source code, or include it in screenshots. `.env.example` contains the safe template.
+
+The LLM path sends tickets in batches to reduce free-tier API usage. If Groq returns an error or rate limit, TrainLens switches to the local fallback for the rest of that run.
+
+## Dashboard Tabs
+
+| Tab | Contents |
+|---|---|
+| Overview | Ticket volume, quality score, categories, sentiment, channels, and trends |
+| Data Quality | Dimension scores and individual check results |
+| Analytics | Category-sentiment heatmap, confidence, and message-length analysis |
+| AI Labeling | Confidence tiers, low-confidence samples, and label distribution |
+| Evaluation | Accuracy, calibration, per-category results, and confusion matrix |
+| Review Queue | Pending reviews, agreement, disagreements, and review candidates |
+
+## Repository Layout
+
+```text
 trainlens/
 ├── data/
-│   ├── raw/                    # Source data
-│   ├── labeled/                # AI-labeled data + review results
-│   └── processed/              # Analytics outputs + evaluation reports
+│   ├── raw/                 # Generated source tickets
+│   ├── labeled/             # Labels and review results
+│   └── processed/           # Analytics and evaluation reports
 ├── src/
-│   ├── data_quality/           # Validation framework (5 dimensions)
-│   ├── analytics/              # DuckDB-powered analytics pipeline
-│   ├── ai_labeling/            # Rule-based + LLM labeling engine
-│   ├── review/                 # Human-in-the-loop review queue
-│   ├── evaluation/             # Metrics, confusion matrices, error analysis
-│   └── dashboard/              # Streamlit application
-├── tests/                      # 17 pytest tests
-├── scripts/                    # Data generation + pipeline runner
-├── .github/workflows/ci.yml   # GitHub Actions CI
-├── requirements.txt
-└── pyproject.toml
+│   ├── data_quality/        # Validation checks and quality reports
+│   ├── analytics/           # DuckDB analytics pipeline
+│   ├── ai_labeling/         # Groq batch labeling and fallback rules
+│   ├── review/              # Human review queue
+│   ├── evaluation/          # Model metrics and error analysis
+│   └── dashboard/           # Streamlit app
+├── scripts/                 # Data generation and pipeline runner
+├── tests/                   # Pytest suite
+├── assets/                  # Dashboard preview image
+└── .github/workflows/       # Continuous integration
 ```
 
-## Tech Stack
+## Technology
 
-- **Data Processing:** pandas, DuckDB
-- **AI Labeling:** Keyword rules + Groq/OpenRouter free APIs
-- **Evaluation:** scikit-learn (precision, recall, F1, confusion matrix)
-- **Visualization:** Plotly, Streamlit
-- **Validation:** Pydantic, custom 5-dimension framework
-- **Testing:** pytest, GitHub Actions CI
+- Python, pandas, and NumPy
+- DuckDB for SQL analytics
+- Groq-compatible OpenAI API and keyword fallback
+- scikit-learn for evaluation metrics
+- Streamlit and Plotly for the dashboard
+- Pydantic for validation models
+- pytest and GitHub Actions for testing
 
-## Skills Used
+## Current Limitations
 
-This project leverages these agent skills:
-- **analytics-data-analysis** — EDA pipelines, pandas workflows, visualization standards
-- **analytics-engineer** — dbt-style staging/mart patterns, data modeling
-- **data-quality-frameworks** — Great Expectations-style validation, data contracts
-- **machine-learning** — Model evaluation, metrics, statistical analysis
-- **senior-ml-engineer** — LLM integration, provider abstraction, cost tracking
+- The demo dataset is synthetic and intentionally contains injected quality issues.
+- Sentiment labels need richer text cues for a stronger baseline.
+- Free API limits can restrict how many tickets receive LLM labels in one run.
+- Human review is simulated; a production deployment would connect a real reviewer workflow.
+
+## Next Improvements
+
+- Add a real review UI with persistent reviewer decisions
+- Add batch retry scheduling for rate-limited LLM requests
+- Add sentiment-aware synthetic message generation
+- Add data drift monitoring between pipeline runs
+- Add a model/provider adapter for Groq, OpenRouter, and local Ollama models
 
 ## License
 
