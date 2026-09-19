@@ -2,11 +2,20 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
+from dotenv import load_dotenv
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
+logger = logging.getLogger(__name__)
+_llm_unavailable = False
 
 
 @dataclass
@@ -98,8 +107,17 @@ def rule_based_label(text: str) -> LabelResult:
 
 def llm_based_label(text: str) -> LabelResult:
     """Label using a free LLM API with fallback to rules."""
+    global _llm_unavailable
+
+    if _llm_unavailable:
+        return rule_based_label(text)
+
     try:
         import httpx
+
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            return rule_based_label(text)
 
         prompt = f"""Classify this customer support message.
 Return ONLY a JSON object with these fields:
@@ -113,9 +131,9 @@ JSON:"""
 
         response = httpx.post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": "Bearer groq_placeholder"},
+            headers={"Authorization": f"Bearer {api_key}"},
             json={
-                "model": "llama-3.1-8b-instant",
+                "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.1,
                 "max_tokens": 100,
@@ -134,10 +152,77 @@ JSON:"""
                     confidence=float(data.get("confidence", 0.5)),
                     method="llm",
                 )
-    except Exception:
-        pass
+        else:
+            _llm_unavailable = True
+            logger.warning(
+                "Groq request failed with HTTP %s (%s); using rule-based fallback",
+                response.status_code,
+                response.text[:180].replace("\n", " "),
+            )
+    except Exception as exc:
+        _llm_unavailable = True
+        logger.warning("Groq request failed (%s); using rule-based fallback", type(exc).__name__)
 
     return rule_based_label(text)
+
+
+def llm_batch_label(texts: list[str]) -> list[LabelResult]:
+    """Label several messages per request to reduce free-tier API usage."""
+    global _llm_unavailable
+    if _llm_unavailable or not os.getenv("GROQ_API_KEY"):
+        return [rule_based_label(text) for text in texts]
+
+    try:
+        import httpx
+
+        messages = "\n".join(
+            f'{index}: "{text[:500].replace(chr(34), chr(39))}"'
+            for index, text in enumerate(texts)
+        )
+        prompt = f"""Classify each customer support message below.
+Return ONLY a JSON array with exactly one object per input, in the same order.
+Each object must contain: category, sentiment, confidence.
+Allowed category values: billing, technical_support, shipping, product_inquiry, cancellation, refund, unknown.
+Allowed sentiment values: positive, neutral, negative.
+
+Messages:
+{messages}
+
+JSON array:"""
+        response = httpx.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"},
+            json={
+                "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                # Reasoning models may spend tokens before returning the JSON array.
+                "max_tokens": max(1500, len(texts) * 150),
+            },
+            timeout=30.0,
+        )
+        if response.status_code != 200:
+            _llm_unavailable = True
+            logger.warning("Groq batch request failed with HTTP %s; using fallback", response.status_code)
+            return [rule_based_label(text) for text in texts]
+
+        content = response.json()["choices"][0]["message"]["content"]
+        match = re.search(r"\[.*\]", content, re.DOTALL)
+        if not match:
+            raise ValueError(f"LLM response was not a JSON array: {content[:220]!r}")
+        data = json.loads(match.group())
+        if len(data) != len(texts):
+            raise ValueError(f"LLM returned {len(data)} labels for {len(texts)} messages")
+        return [LabelResult(
+            predicted_category=item.get("category", "unknown"),
+            predicted_sentiment=item.get("sentiment", "neutral"),
+            confidence=float(item.get("confidence", 0.5)),
+            method="llm",
+        ) for item in data]
+    except Exception as exc:
+        _llm_unavailable = True
+        logger.warning("Groq batch request failed (%s: %s); using fallback", type(exc).__name__, exc)
+        return [rule_based_label(text) for text in texts]
 
 
 class AILabeler:
@@ -153,12 +238,19 @@ class AILabeler:
         return rule_based_label(text)
 
     def label_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        results = df["customer_message"].fillna("").apply(self.label_text)
+        texts = df["customer_message"].fillna("").tolist()
+        if self.use_llm:
+            batch_size = int(os.getenv("LLM_BATCH_SIZE", "20"))
+            results = []
+            for start in range(0, len(texts), batch_size):
+                results.extend(llm_batch_label(texts[start:start + batch_size]))
+        else:
+            results = [rule_based_label(text) for text in texts]
         df = df.copy()
-        df["predicted_category"] = results.apply(lambda r: r.predicted_category)
-        df["predicted_sentiment"] = results.apply(lambda r: r.predicted_sentiment)
-        df["prediction_confidence"] = results.apply(lambda r: r.confidence)
-        df["label_method"] = results.apply(lambda r: r.method)
+        df["predicted_category"] = [result.predicted_category for result in results]
+        df["predicted_sentiment"] = [result.predicted_sentiment for result in results]
+        df["prediction_confidence"] = [result.confidence for result in results]
+        df["label_method"] = [result.method for result in results]
         df["needs_review"] = df["prediction_confidence"] < self.confidence_threshold
         return df
 

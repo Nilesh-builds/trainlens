@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -50,7 +51,8 @@ def stage_analytics():
 def stage_label():
     console.print("[bold blue]Stage 3:[/] AI Labeling")
     from src.ai_labeling.labeler import AILabeler
-    labeler = AILabeler(use_llm=False, confidence_threshold=0.3)
+    use_llm = os.getenv("USE_LLM", "false").lower() in {"1", "true", "yes"}
+    labeler = AILabeler(use_llm=use_llm, confidence_threshold=0.3)
     labeled_df = labeler.label_file(
         DATA_RAW / "customer_support_tickets.csv",
         DATA_LABELED / "labeled_tickets.csv",
