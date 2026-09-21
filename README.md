@@ -1,4 +1,4 @@
-﻿# TrainLens
+# TrainLens
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Open%20Dashboard-FF4B4B?logo=streamlit&logoColor=white)](https://trainlens-gv48ihtbq6nbapgfrlworc.streamlit.app/)
 [![CI](https://github.com/Nilesh-builds/trainlens/actions/workflows/ci.yml/badge.svg)](https://github.com/Nilesh-builds/trainlens/actions/workflows/ci.yml)
@@ -131,21 +131,21 @@ The repository does not require generated data to be committed. On first launch,
 
 ```text
 trainlens/
-â”œâ”€â”€ data/
-â”‚   â”œâ”€â”€ raw/                 # Generated source tickets
-â”‚   â”œâ”€â”€ labeled/             # Labels and review results
-â”‚   â””â”€â”€ processed/           # Analytics and evaluation reports
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ data_quality/        # Validation checks and quality reports
-â”‚   â”œâ”€â”€ analytics/           # DuckDB analytics pipeline
-â”‚   â”œâ”€â”€ ai_labeling/         # Groq batch labeling and fallback rules
-â”‚   â”œâ”€â”€ review/              # Human review queue
-â”‚   â”œâ”€â”€ evaluation/          # Model metrics and error analysis
-â”‚   â””â”€â”€ dashboard/           # Streamlit app
-â”œâ”€â”€ scripts/                 # Data generation and pipeline runner
-â”œâ”€â”€ tests/                   # Pytest suite
-â”œâ”€â”€ assets/                  # Dashboard preview image
-â””â”€â”€ .github/workflows/       # Continuous integration
+├── data/
+│   ├── raw/                 # Generated source tickets
+│   ├── labeled/             # Labels and review results
+│   └── processed/           # Analytics and evaluation reports
+├── src/
+│   ├── data_quality/        # Validation checks and quality reports
+│   ├── analytics/           # DuckDB analytics pipeline
+│   ├── ai_labeling/         # Groq batch labeling and fallback rules
+│   ├── review/              # Human review queue
+│   ├── evaluation/          # Model metrics and error analysis
+│   └── dashboard/           # Streamlit app
+├── scripts/                 # Data generation and pipeline runner
+├── tests/                   # Pytest suite
+├── assets/                  # Dashboard preview image
+└── .github/workflows/       # Continuous integration
 ```
 
 ## Technology
