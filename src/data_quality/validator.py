@@ -6,7 +6,6 @@ from enum import Enum
 from pathlib import Path
 
 import pandas as pd
-from pydantic import BaseModel, Field
 
 
 class Severity(str, Enum):
