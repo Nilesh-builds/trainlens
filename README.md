@@ -5,6 +5,8 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)
 
+> Quality score ~98.8% (98.85%) on 852 synthetic tickets, with 74.02% category accuracy and 12.32% (105) routed for review. See `results/metrics.json`.
+
 ![TrainLens dashboard](assets/dashboard.png)
 
 TrainLens is a customer-support data quality and evaluation platform. It checks raw tickets, assigns category and sentiment labels, routes uncertain predictions for review, and reports model performance through a Streamlit dashboard.
@@ -43,18 +45,18 @@ Raw tickets
 
 ## Latest Baseline
 
-The generated dataset contains 852 customer-support conversations after quality issues are injected. Results vary slightly because the review simulation samples records randomly.
+Source: `results/metrics.json` (rerun with `USE_LLM=false`, rule-based fallback, seed 42). The generated dataset contains 852 synthetic customer-support conversations after quality issues are injected. Results vary slightly because the review simulation samples records randomly.
 
 | Metric | Observed value |
 |---|---:|
-| Dataset size | 852 conversations |
-| Quality score | 98.81% |
+| Dataset size | 852 conversations (synthetic) |
+| Quality score | 98.85% (3/11 checks passed) |
 | Category accuracy | 74.02% |
 | Category F1 | 73.86% |
 | Sentiment accuracy | 77.94% |
 | Sentiment F1 | 77.89% |
-| Review queue | 12.32% |
-| Automated tests | 19 passing |
+| Review queue | 12.32% (105 records) |
+| Automated tests | 25 passing |
 
 The generator adds explicit but natural sentiment cues so the baseline can be evaluated against the message text. The benchmark still includes malformed records and unknown values to exercise the quality checks.
 
@@ -68,6 +70,7 @@ Use Python 3.10 or newer.
 git clone https://github.com/Nilesh-builds/trainlens.git
 cd trainlens
 pip install -r requirements.txt
+python scripts/generate_data.py
 ```
 
 Run the pipeline:
@@ -157,13 +160,6 @@ trainlens/
 - Streamlit and Plotly for the dashboard
 - Pydantic for validation models
 - pytest and GitHub Actions for testing
-
-## Suggested GitHub Topics
-
-```text
-python, streamlit, data-quality, customer-support-analytics,
-llm-evaluation, human-in-the-loop, machine-learning, plotly
-```
 
 ## Current Limitations
 
