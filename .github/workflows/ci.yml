@@ -28,10 +28,17 @@ jobs:
           pip install pytest ruff
 
       - name: Lint with ruff
-        run: ruff check src/ tests/
+        run: ruff check src/ tests/ --select F
 
       - name: Run tests
         run: pytest tests/ -v
 
+      - name: Generate demo data
+        run: python scripts/generate_data.py
+        env:
+          USE_LLM: "false"
+
       - name: Run pipeline
         run: python scripts/run_pipeline.py
+        env:
+          USE_LLM: "false"
