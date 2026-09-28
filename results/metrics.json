@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-09-28T00:52:46.069683+00:00",
+  "dataset": {
+    "rows": 852,
+    "synthetic": true,
+    "seed": 42,
+    "source": "scripts/generate_data.py"
+  },
+  "quality": {
+    "overall_score": 98.85,
+    "passed_checks": 3,
+    "failed_checks": 8,
+    "total_checks": 11
+  },
+  "labeling": {
+    "model": "rule-based (USE_LLM=false)",
+    "labeled_rows": 852,
+    "needs_review_count": 105,
+    "needs_review_pct": 12.32
+  },
+  "evaluation": {
+    "total_samples": 852,
+    "category_accuracy": 74.02,
+    "category_f1": 73.86,
+    "category_macro_f1": 73.38,
+    "sentiment_accuracy": 77.94,
+    "sentiment_f1": 77.89,
+    "sentiment_macro_f1": 77.74,
+    "needs_review_pct": 12.32
+  }
+}
